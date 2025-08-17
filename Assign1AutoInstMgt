@@ -1,0 +1,31 @@
+import boto3
+
+def lambda_handler(event, context):
+    ec2 = boto3.client('ec2')
+    affected_instances = {'started': [], 'stopped': []}
+    target_instance_ids = ['i-0737a00de076a0662', 'i-0355f7b46123b4619']  
+
+    
+    response = ec2.describe_instances()
+
+    for reservation in response['Reservations']:
+        for instance in reservation['Instances']:
+            instance_id = instance['InstanceId']
+            state = instance['State']['Name']
+            tags = instance.get('Tags', [])
+
+            
+            if instance_id in target_instance_ids:
+                for tag in tags:
+                    if tag['Key'] == 'Action':
+                        if tag['Value'] == 'Auto-Stop' and state == 'running':
+                            ec2.stop_instances(InstanceIds=[instance_id])
+                            affected_instances['stopped'].append(instance_id)
+                        elif tag['Value'] == 'Auto-Start' and state == 'stopped':
+                            ec2.start_instances(InstanceIds=[instance_id])
+                            affected_instances['started'].append(instance_id)
+
+    print("Stopped instances:", affected_instances['stopped'])
+    print("Started instances:", affected_instances['started'])
+
+    return affected_instances
